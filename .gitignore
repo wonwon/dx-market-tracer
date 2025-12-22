@@ -1,0 +1,17 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Data
+favorites.json
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Frontend
+node_modules/
+dist/

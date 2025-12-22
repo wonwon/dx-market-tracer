@@ -1,0 +1,14 @@
+<p class="section-header">WATCH LIST</p>
+<div class="space-y-[1px]">
+    {% for code, name in favorites.items() %}
+    <div class="watchlist-item p-2 flex justify-between items-center group cursor-pointer" 
+         hx-get="/stock/{{ code }}" hx-target="#main-panel" hx-push-url="true">
+        <div class="flex flex-col overflow-hidden">
+            <span class="ticker-link text-xs">{{ code }}</span>
+            <span class="text-[10px] text-gray-400 truncate">{{ name }}</span>
+        </div>
+        <button hx-post="/favorites/remove" hx-vals='{"code": "{{ code }}"}' hx-target="#watchlist-container" 
+                class="hidden group-hover:block text-gray-500 hover:text-red-500 text-xs">×</button>
+    </div>
+    {% endfor %}
+</div>

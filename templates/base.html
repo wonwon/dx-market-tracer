@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Speed Web</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { background-color: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+        .sidebar { background-color: #161b22; border-right: 1px solid #30363d; }
+        .section-header { font-size: 0.75rem; font-weight: 600; color: #8b949e; border-left: 3px solid #1f6feb; padding-left: 8px; margin: 16px 0 8px 0; text-transform: uppercase; }
+        .btn-speed { background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; transition: 0.2s; }
+        .btn-speed:hover { background-color: #30363d; border-color: #8b949e; color: #fff; }
+        .watchlist-item { border-bottom: 1px solid #21262d; }
+        .watchlist-item:hover { background-color: #1f242c; }
+        .ticker-link { color: #58a6ff; font-weight: bold; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+    </style>
+</head>
+<body class="bg-[#0d1117] text-[#e6edf3]">
+    {% block content %}{% endblock %}
+
+    <script>
+        // Global State
+        window.currentChartType = 'candle';
+        window.showMA = true;
+
+        window.toggleMA = function() {
+            window.showMA = !window.showMA;
+            window.initStockChart('chart-container', window.currentChartType, window.showMA);
+        };
+
+        window.initStockChart = async function(containerId, chartType = null, showMA = null) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            if (chartType !== null) window.currentChartType = chartType;
+            if (showMA !== null) window.showMA = showMA;
+
+            const codeHeader = document.querySelector('[data-stock-code]');
+            const code = codeHeader ? codeHeader.getAttribute('data-stock-code') : null;
+            if (!code) return;
+
+            container.innerHTML = '<div class="p-10 text-center text-gray-500 text-sm italic">Loading Chart...</div>';
+            
+            if (typeof LightweightCharts === 'undefined') {
+                container.innerHTML = '<div class="p-4 text-red-500 text-xs">Library not loaded</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/stock_data/${code}`);
+                const candleData = await response.json();
+                
+                if (candleData.error) {
+                    container.innerHTML = `<div class="p-10 text-center text-orange-500 text-sm">Error: ${candleData.error}</div>`;
+                    return;
+                }
+
+                container.innerHTML = '';
+
+                const chart = LightweightCharts.createChart(container, {
+                    width: container.clientWidth,
+                    height: 400,
+                    layout: { background: { type: 'solid', color: '#161b22' }, textColor: '#d1d4dc' },
+                    grid: {
+                        vertLines: { color: 'rgba(42, 46, 57, 0.05)' },
+                        horzLines: { color: 'rgba(42, 46, 57, 0.05)' },
+                    },
+                    rightPriceScale: { borderColor: 'rgba(197, 203, 206, 0.1)' },
+                    timeScale: { 
+                        borderColor: 'rgba(197, 203, 206, 0.1)',
+                        rightOffset: 50, // 右側に余白（約1cm分）
+                        barSpacing: 6,
+                    },
+                });
+
+                // --- SERIES SETUP ---
+                let mainSeries;
+                if (window.currentChartType === 'line') {
+                    mainSeries = chart.addLineSeries({ color: '#58a6ff', lineWidth: 2 });
+                    mainSeries.setData(candleData.map(d => ({ time: d.time, value: d.close })));
+                } else if (window.currentChartType === 'area') {
+                    mainSeries = chart.addAreaSeries({ 
+                        lineColor: '#58a6ff', topColor: 'rgba(88, 166, 255, 0.4)', bottomColor: 'rgba(88, 166, 255, 0.0)' 
+                    });
+                    mainSeries.setData(candleData.map(d => ({ time: d.time, value: d.close })));
+                } else {
+                    mainSeries = chart.addCandlestickSeries({
+                        upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+                        wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+                    });
+                    mainSeries.setData(candleData);
+                }
+
+                // Moving Averages (Conditional)
+                if (window.showMA) {
+                    const ma5Data = [];
+                    const ma25Data = [];
+                    const prices = candleData.map(d => d.close);
+                    
+                    candleData.forEach((d, i) => {
+                        if (i >= 4) {
+                            const sum = prices.slice(i-4, i+1).reduce((a, b) => a + b, 0);
+                            ma5Data.push({ time: d.time, value: sum/5 });
+                        }
+                        if (i >= 24) {
+                            const sum = prices.slice(i-24, i+1).reduce((a, b) => a + b, 0);
+                            ma25Data.push({ time: d.time, value: sum/25 });
+                        }
+                    });
+
+                    const ma5Series = chart.addLineSeries({ color: 'rgba(255, 255, 0, 0.5)', lineWidth: 1, title: 'MA5' });
+                    ma5Series.setData(ma5Data);
+                    const ma25Series = chart.addLineSeries({ color: 'rgba(255, 0, 255, 0.5)', lineWidth: 1, title: 'MA25' });
+                    ma25Series.setData(ma25Data);
+                }
+
+                window.addEventListener('resize', () => {
+                    if (container && container.clientWidth > 0) {
+                        chart.applyOptions({ width: container.clientWidth });
+                    }
+                });
+
+                console.log(`Chart Rendered (${code}): ${window.currentChartType} (MA: ${window.showMA})`);
+            } catch (e) {
+                console.error("Chart Error:", e);
+                container.innerHTML = '<div class="p-4 text-orange-500 text-xs text-center">Rendering Error: ' + e.message + '</div>';
+            }
+        };
+
+        // Handle HTMX swaps
+        window.addEventListener('load', () => window.initStockChart('chart-container'));
+        document.body.addEventListener('htmx:afterSettle', (evt) => {
+            if (evt.detail.target.id === 'main-panel' || document.getElementById('chart-container')) {
+                window.initStockChart('chart-container');
+            }
+        });
+    </script>
+</body>
+</html>
