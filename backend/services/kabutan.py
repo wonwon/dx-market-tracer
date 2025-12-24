@@ -1,8 +1,9 @@
 import httpx
+import asyncio
 from bs4 import BeautifulSoup
 import re
 from typing import List, Optional
-from schemas.stock import StockDetails, NewsItem, OHLCV
+from schemas.stock import StockDetails, NewsItem, OHLCV, MarketIndices, IndexInfo
 
 class KabutanService:
     BASE_URL = "https://kabutan.jp"
@@ -42,79 +43,131 @@ class KabutanService:
                     change = dds[0].get_text(strip=True)
                     change_percent = dds[1].get_text(strip=True).replace("%", "")
 
-            # 詳細指標を抽出する関数
+            # 詳細指標を抽出する関数 (より堅牢に)
             def get_val(label):
-                headers = soup.find_all(['th', 'td'])
-                for cell in headers:
-                    cell_text = cell.get_text(strip=True)
-                    if label == cell_text or (label in cell_text and len(cell_text) < 20):
-                        # Case 1: Horizontal header in a <thead> or <tr> with <td> below
-                        table = cell.find_parent('table')
-                        if table:
-                            row = cell.find_parent('tr')
-                            if row:
+                # ユーザーフィードバックに基づき、表形式や隣接要素から柔軟に値を抽出
+                cells = soup.find_all(['th', 'td'], string=re.compile(f"^{label}$|{label}"))
+                for cell in cells:
+                    # 1. 次の兄弟要素がtdならその値
+                    sibling = cell.find_next_sibling(['td', 'th'])
+                    if sibling:
+                        val = sibling.get_text(strip=True)
+                        if val and val != label: return val
+                    
+                    # 2. 親要素の次の行の同じインデックスを探索
+                    row = cell.find_parent('tr')
+                    if row:
+                        parent = row.parent
+                        rows = parent.find_all('tr')
+                        try:
+                            row_idx = rows.index(row)
+                            if row_idx + 1 < len(rows):
                                 siblings = row.find_all(['th', 'td'])
-                                idx = siblings.index(cell)
-                                # Check if it's a vertical or horizontal table
-                                # If it's a header row and there's a tbody with data
-                                tbody = table.find('tbody')
-                                if tbody and tbody != row.parent:
-                                    trs = tbody.find_all('tr')
-                                    if trs:
-                                        target_tds = trs[0].find_all('td')
-                                        if len(target_tds) > idx:
-                                            return target_tds[idx].get_text(strip=True)
-                        
-                        # Case 2: Vertical header (th -> td)
-                        td = cell.find_next_sibling('td')
-                        if td:
-                            return td.get_text(strip=True)
+                                cell_idx = siblings.index(cell)
+                                next_row_cells = rows[row_idx + 1].find_all(['th', 'td'])
+                                if len(next_row_cells) > cell_idx:
+                                    val = next_row_cells[cell_idx].get_text(strip=True)
+                                    if val: return val
+                        except (ValueError, IndexError): pass
+                return "-"
+
+            # 指標抽出のための汎用ヘルパー
+            def find_metric(label, fuzzy=False):
+                pattern = re.compile(f"^{label}$" if not fuzzy else label)
+                # 1. th/tdの中から検索
+                cell = soup.find(['th', 'td', 'dt'], string=pattern)
+                if not cell:
+                    # テキストとして含む要素を検索
+                    cell = soup.find(lambda t: t.name in ['th', 'td', 'dt', 'span'] and label in t.get_text())
+                
+                if cell:
+                    # 次の兄弟要素をチェック
+                    sibling = cell.find_next_sibling(['td', 'dd', 'span'])
+                    if sibling:
+                        text = sibling.get_text(strip=True)
+                        if text and text != label: return text
+                    
+                    # 親の次の要素をチェック (Vertical layout)
+                    parent = cell.parent
+                    if parent:
+                        next_p = parent.find_next_sibling()
+                        if next_p:
+                            val = next_p.get_text(strip=True)
+                            if val: return val
                 return "-"
 
             # 指標情報
-            vwap = get_val("VWAP")
-            volume = get_val("出来高")
+            vwap = find_metric("VWAP")
+            volume = find_metric("出来高")
             
-            # ... (margin logic remains same)
-            # 信用取引情報の抽出 (Table based)
+            # 1. 主要指標テーブル (PER, PBR, 利回り, 信用倍率) の精密抽出
+            yield_val = "-"
+            margin_ratio = "-"
+            stats_div = soup.find('div', id='stockinfo_i3')
+            if stats_div:
+                thead = stats_div.find('thead')
+                tbody = stats_div.find('tbody')
+                if thead and tbody:
+                    ths = thead.find_all('th')
+                    tds = tbody.find_all('td')
+                    for i, th in enumerate(ths):
+                        if i < len(tds):
+                            th_text = th.get_text(strip=True)
+                            val = tds[i].get_text(strip=True)
+                            if "利回り" in th_text: yield_val = val
+                            if "信用倍率" in th_text: margin_ratio = val
+
+            # 2. VWAP と 出来高
+            vwap = find_metric("VWAP")
+            volume = find_metric("出来高")
+
+            # 3. 信用残高 (専用テーブル)
             margin_buy = "-"
             margin_sell = "-"
-            margin_ratio = "-"
-            
             shinyo_h2 = soup.find('h2', string=re.compile("信用取引"))
             if shinyo_h2:
                 shinyo_table = shinyo_h2.find_next('table')
                 if shinyo_table:
-                    tbody = shinyo_table.find('tbody')
-                    if tbody:
-                        first_row = tbody.find('tr')
-                        if first_row:
-                            td_cells = first_row.find_all('td')
-                            if len(td_cells) >= 3:
-                                margin_sell = td_cells[0].get_text(strip=True)
-                                margin_buy = td_cells[1].get_text(strip=True)
-                                margin_ratio = td_cells[2].get_text(strip=True)
+                    td_list = shinyo_table.find_all('td')
+                    if len(td_list) >= 2:
+                        margin_sell = td_list[0].get_text(strip=True)
+                        margin_buy = td_list[1].get_text(strip=True)
+                        # ここでもしmargin_ratioが取れていなければ上書き
+                        if margin_ratio == "-" and len(td_list) >= 3:
+                            margin_ratio = td_list[2].get_text(strip=True)
 
-            # 乖離率の抽出
+            # 4. 25日/75日乖離率
             ma25_diff = "-"
             ma75_diff = "-"
-            trend_div = soup.select_one(".kabuka_trend")
-            if trend_div:
-                rows = trend_div.find_all('tr')
-                if len(rows) >= 2:
-                    # ヘッダー行に「25日」「75日」が含まれているか確認
-                    header_tds = rows[0].find_all(['th', 'td'])
-                    val_tds = rows[1].find_all(['th', 'td'])
-                    for i, h in enumerate(header_tds):
-                        if "25日" in h.get_text():
-                            if len(val_tds) > i:
-                                ma25_diff = val_tds[i].get_text(strip=True)
-                        if "75日" in h.get_text():
-                            if len(val_tds) > i:
-                                ma75_diff = val_tds[i].get_text(strip=True)
+            trend_table = soup.select_one(".kabuka_trend")
+            if trend_table:
+                trs = trend_table.find_all('tr')
+                if len(trs) >= 2:
+                    td_list = trs[1].find_all('td')
+                    if len(td_list) >= 2:
+                        ma25_diff = td_list[0].get_text(strip=True)
+                        ma75_diff = td_list[1].get_text(strip=True)
 
-            yield_val = get_val("利回り")
-            settlement = get_val("決算発表日")
+            # 5. 決算・配当・優待の日程 (より柔軟な検索)
+            def get_robust_date(labels):
+                for label in labels:
+                    target = soup.find(['th', 'td', 'dt'], string=re.compile(label))
+                    if target:
+                        sib = target.find_next_sibling(['td', 'dd'])
+                        if sib: return sib.get_text(strip=True)
+                        # Vertical case
+                        tr = target.find_parent('tr')
+                        if tr:
+                            next_tr = tr.find_next_sibling('tr')
+                            if next_tr:
+                                idx = tr.find_all(['th', 'td']).index(target)
+                                next_tds = next_tr.find_all(['th', 'td'])
+                                if len(next_tds) > idx: return next_tds[idx].get_text(strip=True)
+                return "-"
+
+            settlement = get_robust_date(["決算発表日", "発表日"])
+            ex_div = get_robust_date(["配当落ち日", "配当落", "権利付最終"])
+            benefit = get_robust_date(["優待発生月", "優待権利", "株主優待"])
 
             # 同時並行でニュースと履歴を取得
             news = await self.get_news(code)
@@ -134,6 +187,8 @@ class KabutanService:
                 ma25_diff=ma25_diff,
                 ma75_diff=ma75_diff,
                 dividend_yield=yield_val,
+                ex_dividend_date=ex_div,
+                benefit_date=benefit,
                 settlement_date=settlement,
                 news=news,
                 history=history
@@ -160,6 +215,54 @@ class KabutanService:
                             href = f"{self.BASE_URL}{href}"
                         news_items.append(NewsItem(title=title, url=href))
             return news_items
+
+    async def get_market_indices(self) -> MarketIndices:
+        indices = await asyncio.gather(
+            self._get_index_info("0000", "日経平均"),
+            self._get_index_info("0010", "TOPIX"),
+            self._get_index_info("0411", "日経先物")
+        )
+        return MarketIndices(
+            nikkei225=indices[0],
+            topix=indices[1],
+            futures=indices[2]
+        )
+
+    async def _get_index_info(self, code: str, fallback_name: str) -> IndexInfo:
+        url = f"{self.BASE_URL}/stock/chart?code={code}"
+        async with httpx.AsyncClient(headers=self.HEADERS, timeout=10.0) as client:
+            try:
+                response = await client.get(url)
+                if response.status_code != 200:
+                    return IndexInfo(name=fallback_name, price="---", change="---", change_percent="---")
+                
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # インデックス名
+                name = fallback_name
+                company_block = soup.find('div', class_='company_block')
+                if company_block and company_block.find('h3'):
+                    name = re.sub(r'^\d{4}\s*', '', company_block.find('h3').get_text(strip=True))
+
+                # 株価情報
+                price = "---"
+                change = "---"
+                pct = "---"
+                
+                kabuka_span = soup.select_one(".kabuka")
+                if kabuka_span:
+                    price = kabuka_span.get_text(strip=True)
+                
+                si_dl1 = soup.select_one(".si_i1_dl1")
+                if si_dl1:
+                    dds = si_dl1.find_all('dd')
+                    if len(dds) >= 2:
+                        change = dds[0].get_text(strip=True)
+                        pct = dds[1].get_text(strip=True)
+                
+                return IndexInfo(name=name, price=price, change=change, change_percent=pct)
+            except Exception:
+                return IndexInfo(name=fallback_name, price="---", change="---", change_percent="---")
 
     async def get_history(self, code: str) -> List[OHLCV]:
         url = f"{self.BASE_URL}/stock/kabuka?code={code}"

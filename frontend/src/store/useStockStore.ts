@@ -8,6 +8,23 @@ export interface WatchlistItem {
   change?: string;
   industry?: string;
   vwap?: string;
+  ma25_diff?: string;
+  settlement_date?: string;
+  ex_dividend_date?: string;
+  benefit_date?: string;
+}
+
+export interface IndexInfo {
+  name: string;
+  price: string;
+  change: string;
+  change_percent: string;
+}
+
+export interface MarketIndices {
+  nikkei225: IndexInfo;
+  topix: IndexInfo;
+  futures: IndexInfo;
 }
 
 export interface WatchlistCategory {
@@ -21,10 +38,12 @@ interface StockState {
   currentPrice: string;
   categories: WatchlistCategory[];
   activeCategoryId: string;
+  marketIndices: MarketIndices | null;
   
   setSelectedTicker: (ticker: string) => void;
   setCurrentPrice: (price: string) => void;
   setActiveCategory: (id: string) => void;
+  updateMarketIndices: (indices: MarketIndices) => void;
   
   addCategory: (name: string) => void;
   renameCategory: (id: string, name: string) => void;
@@ -34,6 +53,7 @@ interface StockState {
   addTickers: (tickers: string[]) => void;
   removeFromWatchlist: (ticker: string) => void;
   updateWatchlistItem: (ticker: string, data: Partial<WatchlistItem>) => void;
+  reorderWatchlist: (categoryId: string, startIndex: number, endIndex: number) => void;
   clearWatchlist: () => void;
 }
 
@@ -57,10 +77,12 @@ export const useStockStore = create<StockState>()(
       currentPrice: '',
       categories: DEFAULT_CATEGORIES,
       activeCategoryId: 'cat-1',
+      marketIndices: null,
 
       setSelectedTicker: (ticker) => set({ selectedTicker: ticker, currentPrice: '' }),
       setCurrentPrice: (price) => set({ currentPrice: price }),
       setActiveCategory: (id) => set({ activeCategoryId: id }),
+      updateMarketIndices: (indices) => set({ marketIndices: indices }),
 
       addCategory: (name) => set((state) => ({
         categories: [...state.categories, { id: `cat-${Date.now()}`, name, items: [] }]
@@ -121,6 +143,17 @@ export const useStockStore = create<StockState>()(
             ...c,
             items: c.items.map(i => i.code === ticker ? { ...i, ...data } : i)
           }))
+        })),
+
+      reorderWatchlist: (categoryId, startIndex, endIndex) =>
+        set((state) => ({
+          categories: state.categories.map(c => {
+            if (c.id !== categoryId) return c;
+            const newItems = Array.from(c.items);
+            const [removed] = newItems.splice(startIndex, 1);
+            newItems.splice(endIndex, 0, removed);
+            return { ...c, items: newItems };
+          })
         })),
 
       clearWatchlist: () =>

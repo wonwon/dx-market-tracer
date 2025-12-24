@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "id": "reorder-1",
+      "category": "Watchlist",
+      "title": "並び替え機能",
+      "description": "ドラッグ＆ドロップで銘柄の順序が変わり、リロ―ド後も保持されるか",
+      "is_checked": true,
+      "comment": ""
+    },
+    {
+      "id": "indicator-1",
+      "category": "Watchlist",
+      "title": "詳細指標の表示",
+      "description": "MA25乖離率、決算日、配当落ち日、優待情報が正しく表示されているか",
+      "is_checked": false,
+      "comment": "【再々々々修正済】1.配当利回りの取得ロジックを修正（表のインデックスを厳密に指定）。2.日程情報の検索ワードを拡張（「配当落」「権利付最終」等）。3.データ元となるHTML構造を解析し、最適なセレクタを再設定しました。"
+    },
+    {
+      "id": "ticker-1",
+      "category": "Market",
+      "title": "インデックス・ティッカー",
+      "description": "最上段に日経平均・TOPIX・先物が表示され、適切なレイアウトか",
+      "is_checked": true,
+      "comment": "【修正済】背景色を明るく変更。レイアウトを「価格 + 騰落」の順に修正。"
+    },
+    {
+      "id": "aesthetics-1",
+      "category": "Design",
+      "title": "全体デザイン",
+      "description": "モダンでプロフェッショナルな配色とレイアウトが維持されているか",
+      "is_checked": true,
+      "comment": "【修正済】ティッカーの黒背景を廃止。"
+    }
+  ],
+  "overall_status": "pending"
+}

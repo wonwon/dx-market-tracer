@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useStockStore } from "@/store/useStockStore";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, TrendingUp, Info, Activity, Database, FileText } from "lucide-react";
+import { ExternalLink, TrendingUp, Info, Activity, Database, FileText, Star } from "lucide-react";
 
 export default function IntelligenceGrid() {
   const { selectedTicker, setCurrentPrice } = useStockStore();
@@ -90,30 +90,13 @@ export default function IntelligenceGrid() {
           <div className="flex flex-col gap-6">
             <MetricItem label="配当利回り" value={data.dividend_yield} icon={TrendingUp} />
             <MetricItem label="決算発表予定日" value={data.settlement_date} icon={FileText} />
+            <div className="grid grid-cols-2 gap-4">
+              <MetricItem label="配当落ち日" value={data.ex_dividend_date} icon={Info} />
+              <MetricItem label="優待発生月" value={data.benefit_date} icon={Star} />
+            </div>
           </div>
         </section>
 
-        {/* 4. アクションリング */}
-        <section className="pt-4 border-t border-slate-50">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: "四季報", url: `https://shikiho.toyokeizai.net/stocks/${data.code}` },
-              { label: "適時開示", url: `https://kabutan.jp/stock/news?code=${data.code}&category=cf` },
-              { label: "バフェット・コード", url: `https://www.buffett-code.com/company/${data.code}` },
-            ].map((link) => (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 text-[11px] font-bold rounded-full transition-all"
-              >
-                {link.label}
-                <ExternalLink size={10} />
-              </a>
-            ))}
-          </div>
-        </section>
       </div>
     </div>
   );

@@ -14,6 +14,17 @@ class OHLCV(BaseModel):
     volume: int
     vwap: Optional[float] = None
 
+class IndexInfo(BaseModel):
+    name: str
+    price: str
+    change: str
+    change_percent: str
+
+class MarketIndices(BaseModel):
+    nikkei225: IndexInfo
+    topix: IndexInfo
+    futures: IndexInfo
+
 class StockDetails(BaseModel):
     code: str
     name: str
@@ -28,6 +39,8 @@ class StockDetails(BaseModel):
     ma25_diff: Optional[str] = None
     ma75_diff: Optional[str] = None
     dividend_yield: Optional[str] = None
+    ex_dividend_date: Optional[str] = None
+    benefit_date: Optional[str] = None
     settlement_date: Optional[str] = None
     news: List[NewsItem] = []
     history: List[OHLCV] = []

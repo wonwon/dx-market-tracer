@@ -2,7 +2,103 @@
 
 import { useState, useEffect } from "react";
 import { useStockStore } from "@/store/useStockStore";
-import { X, Plus, ListPlus, Trash2 } from "lucide-react";
+import { X, Plus, ListPlus, Trash2, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
+
+interface SortableItemProps {
+  item: any;
+  isSelected: boolean;
+  onSelect: (code: string) => void;
+  onRemove: (code: string) => void;
+}
+
+function SortableWatchlistItem({ item, isSelected, onSelect, onRemove }: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.code });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group p-3 border-b border-slate-100 cursor-pointer transition-colors relative flex gap-2 items-center ${
+        isSelected ? "bg-blue-50 border-l-4 border-blue-600 shadow-inner" : "hover:bg-slate-50"
+      }`}
+      onClick={() => onSelect(item.code)}
+    >
+      <div 
+        {...attributes} 
+        {...listeners} 
+        className="cursor-grab active:cursor-grabbing p-1 text-slate-300 hover:text-slate-500 transition-colors"
+      >
+        <GripVertical size={16} />
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex justify-between items-start mb-0.5">
+          <span className="font-mono font-bold text-slate-400 text-[10px] tracking-tight">{item.code}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] bg-slate-100 text-slate-500 px-1 rounded uppercase font-bold tracking-tighter">
+              {item.industry || "---"}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(item.code);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 hover:text-red-600 rounded text-slate-400 transition-all ml-1"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+        <div className="text-sm font-black text-slate-800 truncate mb-1">
+          {item.name || <span className="text-slate-300 font-normal italic">Loading...</span>}
+        </div>
+        <div className="flex justify-between items-center mb-1">
+          <span className="font-mono font-bold text-slate-900">{item.price || "¥ ---"}</span>
+          <div className="flex flex-col items-end">
+             <span className={`font-mono text-[10px] font-bold ${item.change?.includes('+') ? 'text-red-500' : 'text-blue-500'}`}>
+              {item.change || "---"}
+            </span>
+            <span className={`font-mono text-[9px] font-bold ${item.ma25_diff?.includes('+') ? 'text-red-500' : 'text-blue-500'}`}>
+              MA25: {item.ma25_diff || "---"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Watchlist() {
   const { 
@@ -13,17 +109,28 @@ export default function Watchlist() {
     addTickers, 
     removeFromWatchlist, 
     updateWatchlistItem,
+    reorderWatchlist,
     clearWatchlist 
   } = useStockStore();
   
   const [input, setInput] = useState("");
   const [showBulk, setShowBulk] = useState(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
   const watchlist = activeCategory.items;
   const watchlistCodes = watchlist.map(i => i.code).join(',');
 
-  // Fetch missing metadata for active category items
   useEffect(() => {
     watchlist.forEach(async (item) => {
       if (!item.code) return;
@@ -37,7 +144,11 @@ export default function Watchlist() {
               price: data.current_price,
               change: `${data.change} (${data.change_percent}%)`,
               industry: data.industry || "市場情報",
-              vwap: data.vwap
+              vwap: data.vwap,
+              ma25_diff: data.ma25_diff,
+              settlement_date: data.settlement_date,
+              ex_dividend_date: data.ex_dividend_date,
+              benefit_date: data.benefit_date
             });
           }
         } catch (e) {
@@ -57,6 +168,15 @@ export default function Watchlist() {
       addTickers(tickers);
       setInput("");
       setShowBulk(false);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = watchlist.findIndex(i => i.code === active.id);
+      const newIndex = watchlist.findIndex(i => i.code === over.id);
+      reorderWatchlist(activeCategoryId, oldIndex, newIndex);
     }
   };
 
@@ -114,49 +234,27 @@ export default function Watchlist() {
             銘柄が登録されていません。<br/>「+」から追加してください。
           </div>
         ) : (
-          watchlist.map((item) => {
-            if (!item.code) return null;
-            return (
-              <div
-                key={item.code}
-                className={`group p-3 border-b border-slate-100 cursor-pointer transition-colors relative ${
-                  selectedTicker === item.code ? "bg-blue-50 border-l-4 border-blue-600 shadow-inner" : "hover:bg-slate-50"
-                }`}
-                onClick={() => setSelectedTicker(item.code)}
-              >
-                <div className="flex justify-between items-start mb-0.5">
-                  <span className="font-mono font-bold text-slate-400 text-[10px] tracking-tight">{item.code}</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1 rounded uppercase font-bold tracking-tighter">
-                      {item.industry || "---"}
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromWatchlist(item.code);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 hover:text-red-600 rounded text-slate-400 transition-all ml-1"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-                <div className="text-sm font-black text-slate-800 truncate mb-1">
-                  {item.name || <span className="text-slate-300 font-normal italic">Loading...</span>}
-                </div>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-mono font-bold text-slate-900">{item.price || "¥ ---"}</span>
-                  <span className={`font-mono text-[10px] font-bold ${item.change?.includes('+') ? 'text-red-500' : 'text-blue-500'}`}>
-                    {item.change || "---"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] text-slate-400">
-                  <span className="font-medium">VWAP</span>
-                  <span className="font-mono font-bold">{item.vwap || "---"}</span>
-                </div>
-              </div>
-            );
-          })
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+          >
+            <SortableContext
+              items={watchlist.map(i => i.code)}
+              strategy={verticalListSortingStrategy}
+            >
+              {watchlist.map((item) => (
+                <SortableWatchlistItem
+                  key={item.code}
+                  item={item}
+                  isSelected={selectedTicker === item.code}
+                  onSelect={setSelectedTicker}
+                  onRemove={removeFromWatchlist}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </div>

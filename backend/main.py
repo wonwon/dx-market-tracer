@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.stocks import router as stocks_router
+from api.review import router as review_router
 
 app = FastAPI(title="TradeInfo API", version="3.0.0")
 
@@ -14,6 +15,7 @@ app.add_middleware(
 )
 
 app.include_router(stocks_router)
+app.include_router(review_router)
 
 @app.get("/")
 async def root():

@@ -9,6 +9,7 @@ import NewsList from "@/components/dashboard/NewsList";
 import LeftRail from "@/components/dashboard/LeftRail";
 import CommandPalette from "@/components/dashboard/CommandPalette";
 import CategoryRail from "@/components/dashboard/CategoryRail";
+import MarketTicker from "@/components/dashboard/MarketTicker";
 
 export default function DashboardPage() {
   const { selectedTicker } = useStockStore();
@@ -36,27 +37,36 @@ export default function DashboardPage() {
       {/* 0.5 Category Rail (Genre Menu) */}
       <CategoryRail />
 
-      {/* 1. Left Column: Watchlist (Fixed Width) */}
-      <aside className="w-80 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col">
-        <Watchlist />
-      </aside>
-
-      {/* 2. Middle Column: Market Intelligence */}
-      <aside className="w-80 flex-shrink-0 border-r border-slate-200 overflow-y-auto bg-white flex flex-col">
-        <IntelligenceGrid />
-      </aside>
-
-      {/* 3. Right Column: Chart & News (Remaining Space flex-1) */}
-      <main className="flex-1 flex flex-col bg-white overflow-hidden">
-        {/* Pane 3: Main Chart (60%) */}
-        <div className="h-[60%] border-b border-slate-200 shadow-sm relative z-0">
-          <MainChart />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Market Index Ticker (10% height) */}
+        <div className="h-[10%] min-h-[70px] max-h-[90px]">
+          <MarketTicker />
         </div>
-        {/* Pane 4: News & Links (40%) */}
-        <div className="h-[40%] overflow-y-auto">
-          <NewsList />
+
+        <div className="flex-1 flex overflow-hidden">
+          {/* 1. Left Column: Watchlist (Fixed Width) */}
+          <aside className="w-80 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col">
+            <Watchlist />
+          </aside>
+
+          {/* 2. Middle Column: Market Intelligence */}
+          <aside className="w-80 flex-shrink-0 border-r border-slate-200 overflow-y-auto bg-white flex flex-col">
+            <IntelligenceGrid />
+          </aside>
+
+          {/* 3. Right Column: Chart & News (Remaining Space flex-1) */}
+          <main className="flex-1 flex flex-col bg-white overflow-hidden">
+            {/* Pane 3: Main Chart (60%) */}
+            <div className="h-[60%] border-b border-slate-200 shadow-sm relative z-0">
+              <MainChart />
+            </div>
+            {/* Pane 4: News & Links (40%) */}
+            <div className="h-[40%] overflow-y-auto">
+              <NewsList />
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
