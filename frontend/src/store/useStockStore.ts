@@ -55,6 +55,8 @@ interface StockState {
   updateWatchlistItem: (ticker: string, data: Partial<WatchlistItem>) => void;
   reorderWatchlist: (categoryId: string, startIndex: number, endIndex: number) => void;
   clearWatchlist: () => void;
+  saveToBackend: () => Promise<void>;
+  loadFromBackend: () => Promise<void>;
 }
 
 const DEFAULT_CATEGORIES: WatchlistCategory[] = [
@@ -72,7 +74,7 @@ const DEFAULT_CATEGORIES: WatchlistCategory[] = [
 
 export const useStockStore = create<StockState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       selectedTicker: '7203',
       currentPrice: '',
       categories: DEFAULT_CATEGORIES,
@@ -84,23 +86,32 @@ export const useStockStore = create<StockState>()(
       setActiveCategory: (id) => set({ activeCategoryId: id }),
       updateMarketIndices: (indices) => set({ marketIndices: indices }),
 
-      addCategory: (name) => set((state) => ({
-        categories: [...state.categories, { id: `cat-${Date.now()}`, name, items: [] }]
-      })),
+      addCategory: (name) => {
+        set((state) => ({
+          categories: [...state.categories, { id: `cat-${Date.now()}`, name, items: [] }]
+        }));
+        get().saveToBackend();
+      },
 
-      renameCategory: (id, name) => set((state) => ({
-        categories: state.categories.map(c => c.id === id ? { ...c, name } : c)
-      })),
+      renameCategory: (id, name) => {
+        set((state) => ({
+          categories: state.categories.map(c => c.id === id ? { ...c, name } : c)
+        }));
+        get().saveToBackend();
+      },
 
-      deleteCategory: (id) => set((state) => {
-        const newCategories = state.categories.filter(c => c.id !== id);
-        return {
-          categories: newCategories,
-          activeCategoryId: state.activeCategoryId === id ? (newCategories[0]?.id || '') : state.activeCategoryId
-        };
-      }),
+      deleteCategory: (id) => {
+        set((state) => {
+          const newCategories = state.categories.filter(c => c.id !== id);
+          return {
+            categories: newCategories,
+            activeCategoryId: state.activeCategoryId === id ? (newCategories[0]?.id || '') : state.activeCategoryId
+          };
+        });
+        get().saveToBackend();
+      },
 
-      addToWatchlist: (ticker) =>
+      addToWatchlist: (ticker) => {
         set((state) => ({
           categories: state.categories.map(c => 
             c.id === state.activeCategoryId 
@@ -112,9 +123,11 @@ export const useStockStore = create<StockState>()(
                 }
               : c
           )
-        })),
+        }));
+        get().saveToBackend();
+      },
 
-      addTickers: (tickers) =>
+      addTickers: (tickers) => {
         set((state) => ({
           categories: state.categories.map(c => {
             if (c.id !== state.activeCategoryId) return c;
@@ -126,26 +139,33 @@ export const useStockStore = create<StockState>()(
             const itemsToAdd = newCodes.slice(0, availableSlots).map(code => ({ code }));
             return { ...c, items: [...c.items, ...itemsToAdd] };
           })
-        })),
+        }));
+        get().saveToBackend();
+      },
 
-      removeFromWatchlist: (ticker) =>
+      removeFromWatchlist: (ticker) => {
         set((state) => ({
           categories: state.categories.map(c =>
             c.id === state.activeCategoryId
               ? { ...c, items: c.items.filter(i => i.code !== ticker) }
               : c
           )
-        })),
+        }));
+        get().saveToBackend();
+      },
 
-      updateWatchlistItem: (ticker, data) =>
+      updateWatchlistItem: (ticker, data) => {
         set((state) => ({
           categories: state.categories.map(c => ({
             ...c,
             items: c.items.map(i => i.code === ticker ? { ...i, ...data } : i)
           }))
-        })),
+        }));
+        // Note: We might want to debounce this if it's called frequently during scrapes
+        get().saveToBackend();
+      },
 
-      reorderWatchlist: (categoryId, startIndex, endIndex) =>
+      reorderWatchlist: (categoryId, startIndex, endIndex) => {
         set((state) => ({
           categories: state.categories.map(c => {
             if (c.id !== categoryId) return c;
@@ -154,14 +174,45 @@ export const useStockStore = create<StockState>()(
             newItems.splice(endIndex, 0, removed);
             return { ...c, items: newItems };
           })
-        })),
+        }));
+        get().saveToBackend();
+      },
 
-      clearWatchlist: () =>
+      clearWatchlist: () => {
         set((state) => ({
           categories: state.categories.map(c =>
             c.id === state.activeCategoryId ? { ...c, items: [] } : c
           )
-        })),
+        }));
+        get().saveToBackend();
+      },
+
+      saveToBackend: async () => {
+        const { categories } = get();
+        try {
+          await fetch('http://127.0.0.1:8000/stocks/watchlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(categories),
+          });
+        } catch (error) {
+          console.error('Failed to save watchlist to backend:', error);
+        }
+      },
+
+      loadFromBackend: async () => {
+        try {
+          const resp = await fetch('http://127.0.0.1:8000/stocks/watchlist');
+          if (resp.ok) {
+            const categories = await resp.json();
+            if (categories && categories.length > 0) {
+              set({ categories });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load watchlist from backend:', error);
+        }
+      },
     }),
     {
       name: 'trade-info-v3-storage',
@@ -169,7 +220,6 @@ export const useStockStore = create<StockState>()(
       migrate: (persistedState: any, version: number) => {
         if (!persistedState) return persistedState;
         
-        // 旧バージョン (watchlist配列) からの新バージョン (categories) への移行
         if (persistedState.watchlist && !persistedState.categories) {
           persistedState.categories = [
             { id: 'cat-1', name: 'インポート', items: persistedState.watchlist.slice(0, 10) },
@@ -179,7 +229,6 @@ export const useStockStore = create<StockState>()(
           delete persistedState.watchlist;
         }
 
-        // 不備がある場合のガード
         if (persistedState.categories) {
           persistedState.categories = persistedState.categories.map((c: any) => ({
             ...c,

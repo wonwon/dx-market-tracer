@@ -1,0 +1,32 @@
+{
+  "output": {
+    "filePath": "repomix-output.md",
+    "style": "markdown",
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "topFilesLength": 5,
+    "showLineNumbers": true,
+    "copyToClipboard": false
+  },
+  "include": ["**/*"],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "**/node_modules/**",
+      "**/venv/**",
+      "**/__pycache__/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/*.pyc",
+      "**/*.pyo",
+      "**/*.pyd",
+      "**/.git/**",
+      "**/.DS_Store",
+      "**/package-lock.json",
+      "**/yarn.lock",
+      "repomix-output.md",
+      "backend/review_status.json"
+    ]
+  }
+}

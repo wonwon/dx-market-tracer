@@ -12,12 +12,13 @@ import CategoryRail from "@/components/dashboard/CategoryRail";
 import MarketTicker from "@/components/dashboard/MarketTicker";
 
 export default function DashboardPage() {
-  const { selectedTicker } = useStockStore();
+  const { selectedTicker, loadFromBackend } = useStockStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    loadFromBackend();
+  }, [loadFromBackend]);
 
   if (!mounted) {
     return (

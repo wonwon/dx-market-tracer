@@ -15,3 +15,6 @@ favorites.json
 # Frontend
 node_modules/
 dist/
+
+# Credentials
+credentials.json

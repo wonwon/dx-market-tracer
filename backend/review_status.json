@@ -31,6 +31,14 @@
       "description": "モダンでプロフェッショナルな配色とレイアウトが維持されているか",
       "is_checked": true,
       "comment": "【修正済】ティッカーの黒背景を廃止。"
+    },
+    {
+      "id": "aireview-1",
+      "category": "Stability",
+      "title": "AIコードレビュー導入",
+      "description": "repomixによるコード梱包と、Gemini 2.5 Proによる3観点レビューが機能するか",
+      "is_checked": false,
+      "comment": "【実装完了】scripts/ai_review.py でローカル実行、および .github/workflows/ai-review.yml で GitHub 連携を実装しました。"
     }
   ],
   "overall_status": "pending"

@@ -44,3 +44,20 @@ class StockDetails(BaseModel):
     settlement_date: Optional[str] = None
     news: List[NewsItem] = []
     history: List[OHLCV] = []
+
+class WatchlistItem(BaseModel):
+    code: str
+    name: Optional[str] = None
+    industry: Optional[str] = None
+    price: Optional[str] = None
+    change: Optional[str] = None
+    vwap: Optional[str] = None
+    ma25_diff: Optional[str] = None
+    settlement_date: Optional[str] = None
+    ex_dividend_date: Optional[str] = None
+    benefit_date: Optional[str] = None
+
+class WatchlistCategory(BaseModel):
+    id: str
+    name: str
+    items: List[WatchlistItem] = []
