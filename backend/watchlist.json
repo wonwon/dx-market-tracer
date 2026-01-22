@@ -1,12 +1,77 @@
 [
-  { "id": "cat-1", "name": "主要銘柄", "items": [{ "code": "7203", "name": "トヨタ", "industry": "輸送用機器" }, { "code": "9434", "name": "ソフトバンク", "industry": "情報・通信業" }] },
-  { "id": "cat-2", "name": "監視銘柄A", "items": [] },
-  { "id": "cat-3", "name": "監視銘柄B", "items": [] },
-  { "id": "cat-4", "name": "高配当銘柄", "items": [] },
-  { "id": "cat-5", "name": "グロース", "items": [] },
-  { "id": "cat-6", "name": "カテゴリ6", "items": [] },
-  { "id": "cat-7", "name": "カテゴリ7", "items": [] },
-  { "id": "cat-8", "name": "カテゴリ8", "items": [] },
-  { "id": "cat-9", "name": "カテゴリ9", "items": [] },
-  { "id": "cat-10", "name": "カテゴリ10", "items": [] }
+  {
+    "id": "cat-1",
+    "name": "主要銘柄",
+    "items": [
+      {
+        "code": "7203",
+        "name": "トヨタ自動車",
+        "industry": "市場情報",
+        "price": "3,429.0円",
+        "change": "+30.0 (+0.88%)",
+        "vwap": "3,458.077 円",
+        "ma25_diff": "",
+        "settlement_date": "-",
+        "ex_dividend_date": "-",
+        "benefit_date": "-"
+      },
+      {
+        "code": "9434",
+        "name": "ソフトバンク",
+        "industry": "市場情報",
+        "price": "217.4円",
+        "change": "+1.2 (+0.56%)",
+        "vwap": "216.915 円",
+        "ma25_diff": "",
+        "settlement_date": "-",
+        "ex_dividend_date": "-",
+        "benefit_date": "-"
+      }
+    ]
+  },
+  {
+    "id": "cat-2",
+    "name": "監視銘柄A",
+    "items": []
+  },
+  {
+    "id": "cat-3",
+    "name": "監視銘柄B",
+    "items": []
+  },
+  {
+    "id": "cat-4",
+    "name": "高配当銘柄",
+    "items": []
+  },
+  {
+    "id": "cat-5",
+    "name": "グロース",
+    "items": []
+  },
+  {
+    "id": "cat-6",
+    "name": "カテゴリ6",
+    "items": []
+  },
+  {
+    "id": "cat-7",
+    "name": "カテゴリ7",
+    "items": []
+  },
+  {
+    "id": "cat-8",
+    "name": "カテゴリ8",
+    "items": []
+  },
+  {
+    "id": "cat-9",
+    "name": "カテゴリ9",
+    "items": []
+  },
+  {
+    "id": "cat-10",
+    "name": "カテゴリ10",
+    "items": []
+  }
 ]
